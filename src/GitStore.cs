@@ -1,8 +1,10 @@
-﻿using LibGit2Sharp;
+﻿using ExecDotnet;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,12 +14,16 @@ namespace GitStoreDotnet
     public class GitStore : IGitStore
     {
         private readonly GitStoreOption _option;
+        private readonly ILogger<GitStore> _logger;
         private readonly SemaphoreSlim _semaphoreSlim;
 
-        public GitStore(IOptions<GitStoreOption> option)
+        public GitStore(IOptions<GitStoreOption> option, ILogger<GitStore> logger)
         {
+            _logger = logger;
             _option = option.Value;
             _semaphoreSlim = new SemaphoreSlim(1, 1);
+
+            ValidateOption();
         }
 
         public async Task AppendTextAsync(string path, string content, Encoding encoding = null, CancellationToken cancellationToken = default)
@@ -26,6 +32,7 @@ namespace GitStoreDotnet
 
             try
             {
+                EnsureDirectoryExists(path);
                 encoding ??= new UTF8Encoding(false);
                 await File.AppendAllTextAsync(path, content, encoding, cancellationToken);
             }
@@ -58,6 +65,11 @@ namespace GitStoreDotnet
 
             try
             {
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
                 return await File.ReadAllBytesAsync(path, cancellationToken);
             }
             finally
@@ -72,6 +84,11 @@ namespace GitStoreDotnet
 
             try
             {
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
                 encoding ??= new UTF8Encoding(false);
                 return await File.ReadAllTextAsync(path, encoding, cancellationToken);
             }
@@ -87,6 +104,11 @@ namespace GitStoreDotnet
 
             try
             {
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
                 encoding ??= new UTF8Encoding(false);
                 return File.ReadLinesAsync(path, encoding, cancellationToken);
             }
@@ -102,6 +124,7 @@ namespace GitStoreDotnet
 
             try
             {
+                EnsureDirectoryExists(path);
                 encoding ??= new UTF8Encoding(false);
                 await File.WriteAllTextAsync(path, content, encoding, cancellationToken);
             }
@@ -117,6 +140,7 @@ namespace GitStoreDotnet
 
             try
             {
+                EnsureDirectoryExists(path);
                 await File.WriteAllBytesAsync(path, bytes, cancellationToken);
             }
             finally
@@ -131,9 +155,35 @@ namespace GitStoreDotnet
 
             try
             {
-                Directory.Delete(_option.LocalDirectory, true);
+                EnsureDirectoryExists(_option.LocalDirectory);
+                DirectoryHelper.DeleteDirectory(_option.LocalDirectory);
 
-                Repository.Clone(_option.RemoteGitUrl, _option.LocalDirectory, GetCloneOptions());
+                int retryTimes = 0;
+                while (retryTimes <= 3 && !Directory.Exists(_option.LocalDirectory))
+                {
+                    retryTimes++;
+                    string command = $"git clone -b {_option.Branch} --single-branch \"{_option.RemoteGitUrl}\" \"{_option.LocalDirectory}\"";
+                    command += $" && cd {_option.LocalDirectory}";
+                    command += $" && git config --local user.name \"{_option.Committer}\"";
+                    command += $" && git config --local user.email \"{_option.CommitterEmail}\"";
+                    if (retryTimes > 1)
+                    {
+                        _logger.LogInformation($"Retry: {retryTimes}... starting to pull DB repo.");
+                    }
+
+                    string output = await Exec.RunAsync(command, cancellationToken);
+                    if (retryTimes > 1)
+                    {
+                        _logger.LogInformation($"Retry: {retryTimes}, cmd: {command}{Environment.NewLine}");
+                    }
+
+                    _logger.LogInformation(output);
+                }
+
+                if (!Directory.Exists(_option.LocalDirectory))
+                {
+                    throw new Exception($"Failed to pull git repo {_option.RemoteGitUrl} to {_option.LocalDirectory}, app will be termintated.");
+                }
             }
             finally
             {
@@ -147,13 +197,22 @@ namespace GitStoreDotnet
 
             try
             {
-                using (var repo = new Repository(_option.LocalDirectory))
+                if (!Directory.Exists(_option.LocalDirectory))
                 {
-                    Commands.Stage(repo, "*");
-                    var author = new Signature(_option.UserName, _option.Email, DateTimeOffset.Now);
-                    repo.Commit(commitMessage, author, author);
-                    repo.Network.Push(repo.Branches[_option.Branch], GetPushOptions());
+                    return;
                 }
+
+                List<string> commands = new()
+                {
+                    $"cd \"{_option.LocalDirectory}\"", 
+                    "git add .",
+                    $"git commit -m \"{commitMessage}\"", 
+                    "git push"
+                };
+                string command =
+                    $"{string.Join(" && ", commands)}";
+                string output = await Exec.RunAsync(command);
+                _logger.LogInformation(output);
             }
             finally
             {
@@ -167,6 +226,11 @@ namespace GitStoreDotnet
 
             try
             {
+                if (!Directory.Exists(path))
+                {
+                    return Enumerable.Empty<string>();
+                }
+
                 return Directory.EnumerateFiles(path, searchPattern, topDirectoryOnly ? SearchOption.TopDirectoryOnly : SearchOption.AllDirectories);
             }
             finally
@@ -175,45 +239,40 @@ namespace GitStoreDotnet
             }
         }
 
-        private CloneOptions GetCloneOptions()
+        private void EnsureDirectoryExists(string path)
         {
-            var cloneOptions = new CloneOptions
+            var dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir))
             {
-                BranchName = _option.Branch
-            };
-
-            if (!string.IsNullOrEmpty(_option.Password))
-            {
-                cloneOptions.CredentialsProvider = (url, user, type) =>
-                {
-                    return new UsernamePasswordCredentials
-                    {
-                        Username = _option.UserName,
-                        Password = _option.Password
-                    };
-                };
+                Directory.CreateDirectory(dir);
             }
-
-            return cloneOptions;
         }
 
-        private PushOptions GetPushOptions()
+        private void ValidateOption()
         {
-            var pushOptions = new PushOptions();
-
-            if (!string.IsNullOrEmpty(_option.Password))
+            if (string.IsNullOrEmpty(_option.Branch))
             {
-                pushOptions.CredentialsProvider = (url, user, type) =>
-                {
-                    return new UsernamePasswordCredentials
-                    {
-                        Username = _option.UserName,
-                        Password = _option.Password
-                    };
-                };
+                throw new Exception("Branch for GitStoreOption is not assigned.");
             }
 
-            return pushOptions;
+            if (string.IsNullOrEmpty(_option.LocalDirectory))
+            {
+                throw new Exception("LocalDirectory for GitStoreOption is not assigned.");
+            }
+
+            if (string.IsNullOrEmpty(_option.RemoteGitUrl))
+            {
+                throw new Exception("RemoteGitUrl for GitStoreOption is not assigned.");
+            }
+
+            if (string.IsNullOrEmpty(_option.Committer))
+            {
+                throw new Exception("Committer for GitStoreOption is not assigned.");
+            }
+            if (string.IsNullOrEmpty(_option.CommitterEmail))
+            {
+                throw new Exception("CommitterEmail for GitStoreOption is not assigned.");
+            }
         }
     }
 }
