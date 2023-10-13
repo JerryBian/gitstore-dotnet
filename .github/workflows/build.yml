@@ -30,7 +30,7 @@ jobs:
           dotnet-version: '7'
       - name: Run test
         run: |
-          $env:PersonalAccessToken = "${{ secrets.ACCESS_TOKEN }}"
+          export PersonalAccessToken="${{ secrets.ACCESS_TOKEN }}"
           dotnet test test/
 
   build_test_linux:
@@ -44,7 +44,7 @@ jobs:
           dotnet-version: '7'
       - name: Run test
         run: |
-          $env:PersonalAccessToken = "${{ secrets.ACCESS_TOKEN }}"
+          export PersonalAccessToken="${{ secrets.ACCESS_TOKEN }}"
           dotnet test test/
 
   publish_nuget:
