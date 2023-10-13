@@ -1,5 +1,4 @@
-﻿using ExecDotnet;
-using Microsoft.Extensions.Logging;
+﻿using LibGit2Sharp;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
@@ -14,12 +13,10 @@ namespace GitStoreDotnet
     public class GitStore : IGitStore
     {
         private readonly GitStoreOption _option;
-        private readonly ILogger<GitStore> _logger;
         private readonly SemaphoreSlim _semaphoreSlim;
 
-        public GitStore(IOptions<GitStoreOption> option, ILogger<GitStore> logger)
+        public GitStore(IOptions<GitStoreOption> option)
         {
-            _logger = logger;
             _option = option.Value;
             _semaphoreSlim = new SemaphoreSlim(1, 1);
 
@@ -155,35 +152,8 @@ namespace GitStoreDotnet
 
             try
             {
-                EnsureDirectoryExists(_option.LocalDirectory);
-                DirectoryHelper.DeleteDirectory(_option.LocalDirectory);
-
-                int retryTimes = 0;
-                while (retryTimes <= 3 && !Directory.Exists(_option.LocalDirectory))
-                {
-                    retryTimes++;
-                    string command = $"git clone -b {_option.Branch} --single-branch \"{_option.RemoteGitUrl}\" \"{_option.LocalDirectory}\"";
-                    command += $" && cd {_option.LocalDirectory}";
-                    command += $" && git config --local user.name \"{_option.Committer}\"";
-                    command += $" && git config --local user.email \"{_option.CommitterEmail}\"";
-                    if (retryTimes > 1)
-                    {
-                        _logger.LogInformation($"Retry: {retryTimes}... starting to pull DB repo.");
-                    }
-
-                    string output = await Exec.RunAsync(command, cancellationToken);
-                    if (retryTimes > 1)
-                    {
-                        _logger.LogInformation($"Retry: {retryTimes}, cmd: {command}{Environment.NewLine}");
-                    }
-
-                    _logger.LogInformation(output);
-                }
-
-                if (!Directory.Exists(_option.LocalDirectory))
-                {
-                    throw new Exception($"Failed to pull git repo {_option.RemoteGitUrl} to {_option.LocalDirectory}, app will be termintated.");
-                }
+                DirectoryHelper.Delete(_option.LocalDirectory);
+                Repository.Clone(_option.RemoteGitUrl, _option.LocalDirectory, GetCloneOptions());
             }
             finally
             {
@@ -197,22 +167,14 @@ namespace GitStoreDotnet
 
             try
             {
-                if (!Directory.Exists(_option.LocalDirectory))
+                using (var repo = new Repository(_option.LocalDirectory))
                 {
-                    return;
+                    Commands.Stage(repo, "*");
+                    var author = new Signature(_option.Author, _option.AuthorEmail, DateTimeOffset.Now);
+                    var committer = new Signature(_option.Committer, _option.CommitterEmail, DateTimeOffset.Now);
+                    repo.Commit(commitMessage, author, committer);
+                    repo.Network.Push(repo.Branches[_option.Branch], GetPushOptions());
                 }
-
-                List<string> commands = new()
-                {
-                    $"cd \"{_option.LocalDirectory}\"", 
-                    "git add .",
-                    $"git commit -m \"{commitMessage}\"", 
-                    "git push"
-                };
-                string command =
-                    $"{string.Join(" && ", commands)}";
-                string output = await Exec.RunAsync(command);
-                _logger.LogInformation(output);
             }
             finally
             {
@@ -265,14 +227,68 @@ namespace GitStoreDotnet
                 throw new Exception("RemoteGitUrl for GitStoreOption is not assigned.");
             }
 
+            if (string.IsNullOrEmpty(_option.Committer) && string.IsNullOrEmpty(_option.Author))
+            {
+                throw new Exception("Neither Committer or Author for GitStoreOption is not assigned.");
+            }
+
+            if (string.IsNullOrEmpty(_option.CommitterEmail) && string.IsNullOrEmpty(_option.AuthorEmail))
+            {
+                throw new Exception("Neither CommitterEmail or AuthorEmail for GitStoreOption is not assigned.");
+            }
+
             if (string.IsNullOrEmpty(_option.Committer))
             {
-                throw new Exception("Committer for GitStoreOption is not assigned.");
+                _option.Committer = _option.Author;
             }
+
+            if (string.IsNullOrEmpty(_option.Author))
+            {
+                _option.Author = _option.Committer;
+            }
+
             if (string.IsNullOrEmpty(_option.CommitterEmail))
             {
-                throw new Exception("CommitterEmail for GitStoreOption is not assigned.");
+                _option.CommitterEmail = _option.AuthorEmail;
             }
+
+            if (string.IsNullOrEmpty(_option.AuthorEmail))
+            {
+                _option.AuthorEmail = _option.CommitterEmail;
+            }
+        }
+
+        private CloneOptions GetCloneOptions()
+        {
+            var cloneOptions = new CloneOptions
+            {
+                BranchName = _option.Branch
+            };
+            cloneOptions.CredentialsProvider = (url, user, type) =>
+            {
+                return new UsernamePasswordCredentials
+                {
+                    Username = _option.UserName,
+                    Password = _option.Password
+                };
+            };
+
+            return cloneOptions;
+        }
+
+        private PushOptions GetPushOptions()
+        {
+            var pushOptions = new PushOptions();
+            pushOptions.CredentialsProvider = (url, user, type) =>
+            {
+                return new UsernamePasswordCredentials
+                {
+                    Username = _option.UserName,
+                    Password = _option.Password
+                };
+            };
+
+            return pushOptions;
         }
     }
 }

@@ -4,7 +4,7 @@ namespace GitStoreDotnet
 {
     internal static class DirectoryHelper
     {
-        public static void DeleteDirectory(string directoryPath)
+        public static void Delete(string directoryPath)
         {
             if (!Directory.Exists(directoryPath))
             {
