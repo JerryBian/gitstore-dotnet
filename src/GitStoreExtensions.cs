@@ -6,7 +6,7 @@ namespace GitStoreDotnet
     {
         public static IServiceCollection AddGitStore(this IServiceCollection serviceCollection)
         {
-            serviceCollection.AddOptions<GitStoreOption>();
+            serviceCollection.AddOptions<GitStoreOption>().BindConfiguration("GitStore");
             serviceCollection.AddSingleton<IGitStore, GitStore>();
 
             return serviceCollection;

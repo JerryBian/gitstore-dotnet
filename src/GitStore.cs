@@ -256,6 +256,11 @@ namespace GitStoreDotnet
             {
                 _option.AuthorEmail = _option.CommitterEmail;
             }
+
+            if (_option.Password == null)
+            {
+                _option.Password = string.Empty;
+            }
         }
 
         private CloneOptions GetCloneOptions()
