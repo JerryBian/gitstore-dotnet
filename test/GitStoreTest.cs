@@ -90,8 +90,6 @@ namespace GitStoreDotnet.Test
             Environment.SetEnvironmentVariable("GitStore__RemoteGitUrl", "https://github.com/JerryBian/gitstore-dotnet");
 
             var builder = Host.CreateApplicationBuilder();
-            builder.Configuration.AddEnvironmentVariables();
-
             builder.Services.AddGitStore();
 
             using IHost host = builder.Build();
@@ -110,7 +108,7 @@ namespace GitStoreDotnet.Test
             var content2 = Guid.NewGuid().ToByteArray();
             await store.InsertOrUpdateAsync(path2, content2);
 
-            await store.PushToRemoteAsync($"TestAccessKeyRepository_{Environment.OSVersion}_{DateTime.Now.ToString("O")}");
+            await store.PushToRemoteAsync($"TestServiceCollectionExtension_{Environment.OSVersion}_{DateTime.Now.ToString("O")}");
             await store.PullFromRemoteAsync();
 
             Assert.Equal(File.ReadAllText(path1), content1);

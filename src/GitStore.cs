@@ -45,6 +45,11 @@ namespace GitStoreDotnet
 
             try
             {
+                if(Directory.Exists(path))
+                {
+                    Directory.Delete(path, true);
+                }
+
                 if (File.Exists(path))
                 {
                     File.Delete(path);
