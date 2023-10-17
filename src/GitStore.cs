@@ -14,13 +14,18 @@ namespace GitStoreDotnet
     {
         private readonly GitStoreOption _option;
         private readonly SemaphoreSlim _semaphoreSlim;
+        private readonly Lazy<object> _lazyValidateOption;
 
         public GitStore(IOptions<GitStoreOption> option)
         {
             _option = option.Value;
             _semaphoreSlim = new SemaphoreSlim(1, 1);
 
-            ValidateOption();
+            _lazyValidateOption = new Lazy<object>(() =>
+            {
+                ValidateOption();
+                return null;
+            }, true);
         }
 
         public async Task AppendTextAsync(string path, string content, bool isRelativePath = false, Encoding encoding = null, CancellationToken cancellationToken = default)
@@ -162,6 +167,7 @@ namespace GitStoreDotnet
 
             try
             {
+                _ = _lazyValidateOption.Value;
                 DirectoryHelper.Delete(_option.LocalDirectory);
                 Repository.Clone(_option.RemoteGitUrl, _option.LocalDirectory, GetCloneOptions());
             }
@@ -177,6 +183,7 @@ namespace GitStoreDotnet
 
             try
             {
+                _ = _lazyValidateOption.Value;
                 using (var repo = new Repository(_option.LocalDirectory))
                 {
                     Commands.Stage(repo, "*");
