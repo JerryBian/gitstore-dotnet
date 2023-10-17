@@ -2,11 +2,19 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using Xunit.Abstractions;
 
 namespace GitStoreDotnet.Test
 {
     public class GitStoreTest
     {
+        private readonly ITestOutputHelper _outputHelper;
+
+        public GitStoreTest(ITestOutputHelper outputHelper)
+        {
+            _outputHelper = outputHelper;
+        }
+
         // https://github.blog/2020-12-15-token-authentication-requirements-for-git-operations/
         // GitHub does not support password git operations 
         [Fact(Skip = "It's not working for GitHub.")]
@@ -113,6 +121,20 @@ namespace GitStoreDotnet.Test
 
             Assert.Equal(File.ReadAllText(path1), content1);
             Assert.True(content2.SequenceEqual(File.ReadAllBytes(path2)));
+        }
+
+        [Theory]
+        [InlineData("/abc/def")]
+        [InlineData("\\098\\890")]
+        [InlineData("../123/456")]
+        [InlineData("C:\\")]
+        [InlineData("test.json")]
+        public void TestPathRelative(string path)
+        {
+            _outputHelper.WriteLine($"<<< {path} >>>");
+            _outputHelper.WriteLine($"IsPathRooted: {Path.IsPathRooted(path)}");
+            _outputHelper.WriteLine($"IsPathFullyQualified: {Path.IsPathFullyQualified(path)}");
+            _outputHelper.WriteLine($"FullPath: {Path.GetFullPath(path)}");
         }
     }
 }

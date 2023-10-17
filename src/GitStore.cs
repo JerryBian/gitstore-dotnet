@@ -23,13 +23,13 @@ namespace GitStoreDotnet
             ValidateOption();
         }
 
-        public async Task AppendTextAsync(string path, string content, Encoding encoding = null, CancellationToken cancellationToken = default)
+        public async Task AppendTextAsync(string path, string content, bool isRelativePath = false, Encoding encoding = null, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                EnsureDirectoryExists(path);
+                path = GetFullPath(path, isRelativePath, true);
                 encoding ??= new UTF8Encoding(false);
                 await File.AppendAllTextAsync(path, content, encoding, cancellationToken);
             }
@@ -39,15 +39,17 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task DeleteAsync(string path, CancellationToken cancellationToken = default)
+        public async Task DeleteAsync(string path, bool isRelativePath = false, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                if(Directory.Exists(path))
+                path = GetFullPath(path, isRelativePath, false);
+                if (Directory.Exists(path))
                 {
                     Directory.Delete(path, true);
+                    return;
                 }
 
                 if (File.Exists(path))
@@ -61,12 +63,13 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task<byte[]> GetBytesAsync(string path, CancellationToken cancellationToken = default)
+        public async Task<byte[]> GetBytesAsync(string path, bool isRelativePath = false, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
+                path = GetFullPath(path, isRelativePath, false);
                 if (!File.Exists(path))
                 {
                     return null;
@@ -80,12 +83,13 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task<string> GetTextAsync(string path, Encoding encoding = null, CancellationToken cancellationToken = default)
+        public async Task<string> GetTextAsync(string path, bool isRelativePath = false, Encoding encoding = null, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
+                path = GetFullPath(path, isRelativePath, false);
                 if (!File.Exists(path))
                 {
                     return null;
@@ -100,12 +104,13 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task<IAsyncEnumerable<string>> GetTextLinesAsync(string path, Encoding encoding = null, CancellationToken cancellationToken = default)
+        public async Task<IAsyncEnumerable<string>> GetTextLinesAsync(string path, bool isRelativePath = false, Encoding encoding = null, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
+                path = GetFullPath(path, isRelativePath, false);
                 if (!File.Exists(path))
                 {
                     return null;
@@ -120,13 +125,13 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task InsertOrUpdateAsync(string path, string content, Encoding encoding = null, CancellationToken cancellationToken = default)
+        public async Task InsertOrUpdateAsync(string path, string content, bool isRelativePath = false, Encoding encoding = null, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                EnsureDirectoryExists(path);
+                path = GetFullPath(path, isRelativePath, true);
                 encoding ??= new UTF8Encoding(false);
                 await File.WriteAllTextAsync(path, content, encoding, cancellationToken);
             }
@@ -136,13 +141,13 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task InsertOrUpdateAsync(string path, byte[] bytes, CancellationToken cancellationToken = default)
+        public async Task InsertOrUpdateAsync(string path, byte[] bytes, bool isRelativePath = false, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                EnsureDirectoryExists(path);
+                path = GetFullPath(path, isRelativePath, true);
                 await File.WriteAllBytesAsync(path, bytes, cancellationToken);
             }
             finally
@@ -206,13 +211,23 @@ namespace GitStoreDotnet
             }
         }
 
-        private void EnsureDirectoryExists(string path)
+        private string GetFullPath(string path, bool isRelativePath, bool createDirectory)
         {
-            var dir = Path.GetDirectoryName(path);
-            if (!string.IsNullOrEmpty(dir))
+            if(isRelativePath)
             {
-                Directory.CreateDirectory(dir);
+                path = Path.Combine(_option.LocalDirectory, path);
             }
+
+            if(createDirectory)
+            {
+                var dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir))
+                {
+                    Directory.CreateDirectory(dir);
+                }
+            }
+            
+            return path;
         }
 
         private void ValidateOption()
