@@ -14,27 +14,21 @@ namespace GitStoreDotnet
     {
         private readonly GitStoreOption _option;
         private readonly SemaphoreSlim _semaphoreSlim;
-        private readonly Lazy<object> _lazyValidateOption;
 
         public GitStore(IOptions<GitStoreOption> option)
         {
             _option = option.Value;
             _semaphoreSlim = new SemaphoreSlim(1, 1);
-
-            _lazyValidateOption = new Lazy<object>(() =>
-            {
-                ValidateOption();
-                return null;
-            }, true);
         }
 
-        public async Task AppendTextAsync(string path, string content, bool isRelativePath = false, Encoding encoding = null, CancellationToken cancellationToken = default)
+        public async Task AppendTextAsync(string relativePath, string content, Encoding encoding = null, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                path = GetFullPath(path, isRelativePath, true);
+                ValidateMinimalOption();
+                string path = GetFullPath(relativePath, true);
                 encoding ??= new UTF8Encoding(false);
                 await File.AppendAllTextAsync(path, content, encoding, cancellationToken);
             }
@@ -44,13 +38,14 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task DeleteAsync(string path, bool isRelativePath = false, CancellationToken cancellationToken = default)
+        public async Task DeleteAsync(string relativePath, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                path = GetFullPath(path, isRelativePath, false);
+                ValidateMinimalOption();
+                string path = GetFullPath(relativePath, false);
                 if (Directory.Exists(path))
                 {
                     Directory.Delete(path, true);
@@ -68,19 +63,15 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task<byte[]> GetBytesAsync(string path, bool isRelativePath = false, CancellationToken cancellationToken = default)
+        public async Task<byte[]> GetBytesAsync(string relativePath, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                path = GetFullPath(path, isRelativePath, false);
-                if (!File.Exists(path))
-                {
-                    return null;
-                }
-
-                return await File.ReadAllBytesAsync(path, cancellationToken);
+                ValidateMinimalOption();
+                string path = GetFullPath(relativePath, false);
+                return !File.Exists(path) ? null : await File.ReadAllBytesAsync(path, cancellationToken);
             }
             finally
             {
@@ -88,13 +79,14 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task<string> GetTextAsync(string path, bool isRelativePath = false, Encoding encoding = null, CancellationToken cancellationToken = default)
+        public async Task<string> GetTextAsync(string relativePath, Encoding encoding = null, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                path = GetFullPath(path, isRelativePath, false);
+                ValidateMinimalOption();
+                string path = GetFullPath(relativePath, false);
                 if (!File.Exists(path))
                 {
                     return null;
@@ -109,13 +101,14 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task<IAsyncEnumerable<string>> GetTextLinesAsync(string path, bool isRelativePath = false, Encoding encoding = null, CancellationToken cancellationToken = default)
+        public async Task<IAsyncEnumerable<string>> GetTextLinesAsync(string relativePath, Encoding encoding = null, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                path = GetFullPath(path, isRelativePath, false);
+                ValidateMinimalOption();
+                string path = GetFullPath(relativePath, false);
                 if (!File.Exists(path))
                 {
                     return null;
@@ -130,13 +123,14 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task InsertOrUpdateAsync(string path, string content, bool isRelativePath = false, Encoding encoding = null, CancellationToken cancellationToken = default)
+        public async Task InsertOrUpdateAsync(string relativePath, string content, Encoding encoding = null, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                path = GetFullPath(path, isRelativePath, true);
+                ValidateMinimalOption();
+                string path = GetFullPath(relativePath, true);
                 encoding ??= new UTF8Encoding(false);
                 await File.WriteAllTextAsync(path, content, encoding, cancellationToken);
             }
@@ -146,13 +140,14 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task InsertOrUpdateAsync(string path, byte[] bytes, bool isRelativePath = false, CancellationToken cancellationToken = default)
+        public async Task InsertOrUpdateAsync(string relativePath, byte[] bytes, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                path = GetFullPath(path, isRelativePath, true);
+                ValidateMinimalOption();
+                string path = GetFullPath(relativePath, true);
                 await File.WriteAllBytesAsync(path, bytes, cancellationToken);
             }
             finally
@@ -167,7 +162,7 @@ namespace GitStoreDotnet
 
             try
             {
-                _ = _lazyValidateOption.Value;
+                ValidateOption();
                 DirectoryHelper.Delete(_option.LocalDirectory);
                 Repository.Clone(_option.RemoteGitUrl, _option.LocalDirectory, GetCloneOptions());
             }
@@ -183,12 +178,13 @@ namespace GitStoreDotnet
 
             try
             {
-                _ = _lazyValidateOption.Value;
-                using (var repo = new Repository(_option.LocalDirectory))
+                ValidateOption();
+                using Repository repo = new Repository(_option.LocalDirectory);
+                if (repo.RetrieveStatus().IsDirty)
                 {
                     Commands.Stage(repo, "*");
-                    var author = new Signature(_option.Author, _option.AuthorEmail, DateTimeOffset.Now);
-                    var committer = new Signature(_option.Committer, _option.CommitterEmail, DateTimeOffset.Now);
+                    Signature author = new(_option.Author, _option.AuthorEmail, DateTimeOffset.Now);
+                    Signature committer = new(_option.Committer, _option.CommitterEmail, DateTimeOffset.Now);
                     repo.Commit(commitMessage, author, committer);
                     repo.Network.Push(repo.Branches[_option.Branch], GetPushOptions());
                 }
@@ -199,18 +195,16 @@ namespace GitStoreDotnet
             }
         }
 
-        public async Task<IEnumerable<string>> SearchFilesAsync(string path, string searchPattern, bool topDirectoryOnly = true, CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<string>> SearchFilesAsync(string searchPattern, bool topDirectoryOnly = true, CancellationToken cancellationToken = default)
         {
             await _semaphoreSlim.WaitAsync(cancellationToken);
 
             try
             {
-                if (!Directory.Exists(path))
-                {
-                    return Enumerable.Empty<string>();
-                }
-
-                return Directory.EnumerateFiles(path, searchPattern, topDirectoryOnly ? SearchOption.TopDirectoryOnly : SearchOption.AllDirectories);
+                ValidateMinimalOption();
+                return !Directory.Exists(_option.LocalDirectory)
+                    ? Enumerable.Empty<string>()
+                    : Directory.EnumerateFiles(_option.LocalDirectory, searchPattern, topDirectoryOnly ? SearchOption.TopDirectoryOnly : SearchOption.AllDirectories);
             }
             finally
             {
@@ -218,35 +212,33 @@ namespace GitStoreDotnet
             }
         }
 
-        private string GetFullPath(string path, bool isRelativePath, bool createDirectory)
+        private string GetFullPath(string relativePath, bool createDirectory)
         {
-            if(isRelativePath)
+            string fullPath = Path.Combine(_option.LocalDirectory, relativePath);
+
+            if (createDirectory)
             {
-                path = Path.Combine(_option.LocalDirectory, path);
+                DirectoryHelper.EnsureDirectoryExists(fullPath);
             }
 
-            if(createDirectory)
+            return fullPath;
+        }
+
+        private void ValidateMinimalOption()
+        {
+            if (string.IsNullOrEmpty(_option.LocalDirectory))
             {
-                var dir = Path.GetDirectoryName(path);
-                if (!string.IsNullOrEmpty(dir))
-                {
-                    Directory.CreateDirectory(dir);
-                }
+                throw new Exception("LocalDirectory for GitStoreOption is not assigned.");
             }
-            
-            return path;
         }
 
         private void ValidateOption()
         {
+            ValidateMinimalOption();
+
             if (string.IsNullOrEmpty(_option.Branch))
             {
                 throw new Exception("Branch for GitStoreOption is not assigned.");
-            }
-
-            if (string.IsNullOrEmpty(_option.LocalDirectory))
-            {
-                throw new Exception("LocalDirectory for GitStoreOption is not assigned.");
             }
 
             if (string.IsNullOrEmpty(_option.RemoteGitUrl))
@@ -284,25 +276,22 @@ namespace GitStoreDotnet
                 _option.AuthorEmail = _option.CommitterEmail;
             }
 
-            if (_option.Password == null)
-            {
-                _option.Password = string.Empty;
-            }
+            _option.Password ??= string.Empty;
         }
 
         private CloneOptions GetCloneOptions()
         {
-            var cloneOptions = new CloneOptions
+            CloneOptions cloneOptions = new CloneOptions
             {
-                BranchName = _option.Branch
-            };
-            cloneOptions.CredentialsProvider = (url, user, type) =>
-            {
-                return new UsernamePasswordCredentials
+                BranchName = _option.Branch,
+                CredentialsProvider = (url, user, type) =>
                 {
-                    Username = _option.UserName,
-                    Password = _option.Password
-                };
+                    return new UsernamePasswordCredentials
+                    {
+                        Username = _option.UserName,
+                        Password = _option.Password
+                    };
+                }
             };
 
             return cloneOptions;
@@ -310,14 +299,16 @@ namespace GitStoreDotnet
 
         private PushOptions GetPushOptions()
         {
-            var pushOptions = new PushOptions();
-            pushOptions.CredentialsProvider = (url, user, type) =>
+            PushOptions pushOptions = new PushOptions
             {
-                return new UsernamePasswordCredentials
+                CredentialsProvider = (url, user, type) =>
                 {
-                    Username = _option.UserName,
-                    Password = _option.Password
-                };
+                    return new UsernamePasswordCredentials
+                    {
+                        Username = _option.UserName,
+                        Password = _option.Password
+                    };
+                }
             };
 
             return pushOptions;

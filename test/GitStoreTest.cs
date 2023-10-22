@@ -1,5 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Xunit.Abstractions;
@@ -44,7 +43,7 @@ namespace GitStoreDotnet.Test
             var content2 = Guid.NewGuid().ToByteArray();
             await store.InsertOrUpdateAsync(path2, content2);
 
-            await store.PushToRemoteAsync($"{DateTime.Now.ToString("O")}");
+            await store.PushToRemoteAsync($"{DateTime.Now:O}");
             await store.PullFromRemoteAsync();
 
             Assert.Equal(File.ReadAllText(path1), content1);
@@ -79,11 +78,31 @@ namespace GitStoreDotnet.Test
             var content2 = Guid.NewGuid().ToByteArray();
             await store.InsertOrUpdateAsync(path2, content2);
 
-            await store.PushToRemoteAsync($"TestAccessKeyRepository_{Environment.OSVersion}_{DateTime.Now.ToString("O")}");
+            await store.PushToRemoteAsync($"TestAccessKeyRepository_{Environment.OSVersion}_{DateTime.Now:O}");
             await store.PullFromRemoteAsync();
 
             Assert.Equal(File.ReadAllText(path1), content1);
             Assert.True(content2.SequenceEqual(File.ReadAllBytes(path2)));
+        }
+
+        [Fact]
+        public async Task TestNoCommit()
+        {
+            var accessToken = Environment.GetEnvironmentVariable("PersonalAccessToken");
+            var option = new GitStoreOption
+            {
+                Branch = "unit-test",
+                Author = "test_committer",
+                Password = "",
+                CommitterEmail = "test_committer@test.com",
+                UserName = accessToken,
+                LocalDirectory = Path.Combine(Path.GetTempPath(), "gitstore_unittest"),
+                RemoteGitUrl = "https://github.com/JerryBian/gitstore-dotnet"
+            };
+            var store = new GitStore(Options.Create(option));
+            await store.PullFromRemoteAsync();
+
+            await store.PushToRemoteAsync("");
         }
 
         [Fact]
@@ -100,7 +119,7 @@ namespace GitStoreDotnet.Test
             var builder = Host.CreateApplicationBuilder();
             builder.Services.AddGitStore();
 
-            using IHost host = builder.Build();
+            using var host = builder.Build();
             var store = host.Services.GetRequiredService<IGitStore>();
             var option = host.Services.GetRequiredService<IOptions<GitStoreOption>>().Value;
             await store.PullFromRemoteAsync();
@@ -116,25 +135,11 @@ namespace GitStoreDotnet.Test
             var content2 = Guid.NewGuid().ToByteArray();
             await store.InsertOrUpdateAsync(path2, content2);
 
-            await store.PushToRemoteAsync($"TestServiceCollectionExtension_{Environment.OSVersion}_{DateTime.Now.ToString("O")}");
+            await store.PushToRemoteAsync($"TestServiceCollectionExtension_{Environment.OSVersion}_{DateTime.Now:O}");
             await store.PullFromRemoteAsync();
 
             Assert.Equal(File.ReadAllText(path1), content1);
             Assert.True(content2.SequenceEqual(File.ReadAllBytes(path2)));
-        }
-
-        [Theory]
-        [InlineData("/abc/def")]
-        [InlineData("\\098\\890")]
-        [InlineData("../123/456")]
-        [InlineData("C:\\")]
-        [InlineData("test.json")]
-        public void TestPathRelative(string path)
-        {
-            _outputHelper.WriteLine($"<<< {path} >>>");
-            _outputHelper.WriteLine($"IsPathRooted: {Path.IsPathRooted(path)}");
-            _outputHelper.WriteLine($"IsPathFullyQualified: {Path.IsPathFullyQualified(path)}");
-            _outputHelper.WriteLine($"FullPath: {Path.GetFullPath(path)}");
         }
     }
 }

@@ -4,6 +4,15 @@ namespace GitStoreDotnet
 {
     internal static class DirectoryHelper
     {
+        public static void EnsureDirectoryExists(string path)
+        {
+            string dir = Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+        }
+
         public static void Delete(string directoryPath)
         {
             if (!Directory.Exists(directoryPath))
@@ -17,8 +26,8 @@ namespace GitStoreDotnet
 
         private static void NormalizeAttributes(string directoryPath)
         {
-            var filePaths = Directory.GetFiles(directoryPath);
-            var subdirectoryPaths = Directory.GetDirectories(directoryPath);
+            string[] filePaths = Directory.GetFiles(directoryPath);
+            string[] subdirectoryPaths = Directory.GetDirectories(directoryPath);
 
             foreach (string filePath in filePaths)
             {
