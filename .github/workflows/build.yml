@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v3
       - uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '7'
+          dotnet-version: '8'
       - name: Run test
         run: |
           $env:PersonalAccessToken = "${{ secrets.ACCESS_TOKEN }}"
@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v3
       - uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '7'
+          dotnet-version: '8'
       - name: Run test
         run: |
           export PersonalAccessToken="${{ secrets.ACCESS_TOKEN }}"
@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v3
       - uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '7'
+          dotnet-version: '8'
       - name: Run test
         run: |
           export PersonalAccessToken="${{ secrets.ACCESS_TOKEN }}"
@@ -63,7 +63,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '7'
+          dotnet-version: '8'
 
       - name: Publish NuGet package
         shell: pwsh
