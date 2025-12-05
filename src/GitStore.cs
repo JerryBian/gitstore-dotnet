@@ -283,15 +283,16 @@ namespace GitStoreDotnet
         {
             CloneOptions cloneOptions = new CloneOptions
             {
-                BranchName = _option.Branch,
-                CredentialsProvider = (url, user, type) =>
+                BranchName = _option.Branch
+            };
+
+            cloneOptions.FetchOptions.CredentialsProvider = (url, user, type) =>
                 {
-                    return new UsernamePasswordCredentials
-                    {
-                        Username = _option.UserName,
-                        Password = _option.Password
-                    };
-                }
+                return new UsernamePasswordCredentials
+                {
+                    Username = _option.UserName,
+                    Password = _option.Password
+                };
             };
 
             return cloneOptions;
