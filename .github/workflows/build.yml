@@ -42,7 +42,7 @@ jobs:
       - name: Run tests
         env:
           PersonalAccessToken: ${{ secrets.ACCESS_TOKEN }}
-        run: dotnet test test/ --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
+        run: dotnet test test/ --configuration Release --verbosity normal --logger "trx;LogFileName=test-results.trx"
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
