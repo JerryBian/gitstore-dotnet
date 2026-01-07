@@ -1,22 +1,24 @@
-A dotnet library leverage Git repository as store.
+# GitStore
+
+A .NET library that leverages Git repositories as a data store.
 
 [![master](https://github.com/JerryBian/gitstore-dotnet/actions/workflows/build.yml/badge.svg)](https://github.com/JerryBian/gitstore-dotnet/actions/workflows/build.yml)
 
-Note: it's not a replacement of Git operations, actually it only implements `git clone` and `git push`. Basic idea is clone remoting git repository to local and store data as text or bytes, commit and push to remote. The core operations are file reads and writes.
+**Note**: This is not a replacement for Git operations. It only implements `git clone` and `git push`. The basic concept is to clone a remote Git repository locally, store data as text or binary files, commit the changes, and push them to the remote repository. The core operations are file reads and writes.
 
 ## Usage
 
-Install from [NuGet](https://www.nuget.org/packages/gitstore)
+Install from [NuGet](https://www.nuget.org/packages/gitstore):
 
 ```
 dotnet add package GitStore
 ```
 
-This library supports .NET 7 and version onwards.
+This library supports .NET 8 and later versions.
 
-### Basic usage
+### Basic Usage
 
-Provide required option parameters manually.
+Provide the required option parameters manually:
 
 ```csharp
 var option = new GitStoreOption
@@ -25,7 +27,7 @@ var option = new GitStoreOption
     Author = "test_committer",
     Password = "",
     CommitterEmail = "test_committer@test.com",
-    UserName = <Personal Access Token>,
+    UserName = "<Personal Access Token>",
     LocalDirectory = Path.Combine(Path.GetTempPath(), "gitstore_unittest"),
     RemoteGitUrl = "https://github.com/JerryBian/gitstore-dotnet"
 };
@@ -50,11 +52,11 @@ Assert.Equal(File.ReadAllText(path1), content1);
 Assert.True(content2.SequenceEqual(File.ReadAllBytes(path2)));
 ```
 
-For GitHub repository, you can request PAT here [here](https://github.com/settings/tokens). Please note you cannot use traditional username/password method to operate GitHub anymore, see the [announcement](https://github.blog/2020-12-15-token-authentication-requirements-for-git-operations/).
+For GitHub repositories, you can request a Personal Access Token (PAT) [here](https://github.com/settings/tokens). Please note that you cannot use the traditional username/password method to operate on GitHub anymore. See the [announcement](https://github.blog/2020-12-15-token-authentication-requirements-for-git-operations/) for more details.
 
-### Dependency injection / Options pattern
+### Dependency Injection / Options Pattern
 
-For modern applications, you can register GitStore via DI.
+For modern applications, you can register GitStore via dependency injection:
 
 ```csharp
 var builder = Host.CreateApplicationBuilder();
@@ -66,9 +68,9 @@ var option = host.Services.GetRequiredService<IOptions<GitStoreOption>>().Value;
 await store.PullFromRemoteAsync();
 ```
 
-The option parameters are configured as [standard way](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-7.0).
+The option parameters are configured using the [standard configuration pattern](https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-7.0).
 
-For example, set environment variable as `GitStore__Branch=master`.
+For example, set an environment variable as `GitStore__Branch=master`.
 
 ## License
 

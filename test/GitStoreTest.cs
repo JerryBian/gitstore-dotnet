@@ -14,9 +14,7 @@ namespace GitStoreDotnet.Test
             _outputHelper = outputHelper;
         }
 
-        // https://github.blog/2020-12-15-token-authentication-requirements-for-git-operations/
-        // GitHub does not support password git operations 
-        [Fact(Skip = "It's not working for GitHub.")]
+        [Fact(Skip = "GitHub does not support password-based authentication for Git operations.")]
         public async Task TestPasswordRepository()
         {
             var option = new GitStoreOption

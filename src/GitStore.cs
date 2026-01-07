@@ -228,7 +228,7 @@ namespace GitStoreDotnet
         {
             if (string.IsNullOrEmpty(_option.LocalDirectory))
             {
-                throw new Exception("LocalDirectory for GitStoreOption is not assigned.");
+                throw new InvalidOperationException("LocalDirectory for GitStoreOption is not assigned.");
             }
         }
 
@@ -238,22 +238,22 @@ namespace GitStoreDotnet
 
             if (string.IsNullOrEmpty(_option.Branch))
             {
-                throw new Exception("Branch for GitStoreOption is not assigned.");
+                throw new InvalidOperationException("Branch for GitStoreOption is not assigned.");
             }
 
             if (string.IsNullOrEmpty(_option.RemoteGitUrl))
             {
-                throw new Exception("RemoteGitUrl for GitStoreOption is not assigned.");
+                throw new InvalidOperationException("RemoteGitUrl for GitStoreOption is not assigned.");
             }
 
             if (string.IsNullOrEmpty(_option.Committer) && string.IsNullOrEmpty(_option.Author))
             {
-                throw new Exception("Neither Committer or Author for GitStoreOption is not assigned.");
+                throw new InvalidOperationException("Either Committer or Author for GitStoreOption must be assigned.");
             }
 
             if (string.IsNullOrEmpty(_option.CommitterEmail) && string.IsNullOrEmpty(_option.AuthorEmail))
             {
-                throw new Exception("Neither CommitterEmail or AuthorEmail for GitStoreOption is not assigned.");
+                throw new InvalidOperationException("Either CommitterEmail or AuthorEmail for GitStoreOption must be assigned.");
             }
 
             if (string.IsNullOrEmpty(_option.Committer))
@@ -283,16 +283,15 @@ namespace GitStoreDotnet
         {
             CloneOptions cloneOptions = new CloneOptions
             {
-                BranchName = _option.Branch
-            };
-
-            cloneOptions.FetchOptions.CredentialsProvider = (url, user, type) =>
+                BranchName = _option.Branch,
+                FetchOptions =
                 {
-                return new UsernamePasswordCredentials
-                {
-                    Username = _option.UserName,
-                    Password = _option.Password
-                };
+                    CredentialsProvider = (url, user, type) => new UsernamePasswordCredentials
+                    {
+                        Username = _option.UserName,
+                        Password = _option.Password
+                    }
+                }
             };
 
             return cloneOptions;
@@ -302,13 +301,10 @@ namespace GitStoreDotnet
         {
             PushOptions pushOptions = new PushOptions
             {
-                CredentialsProvider = (url, user, type) =>
+                CredentialsProvider = (url, user, type) => new UsernamePasswordCredentials
                 {
-                    return new UsernamePasswordCredentials
-                    {
-                        Username = _option.UserName,
-                        Password = _option.Password
-                    };
+                    Username = _option.UserName,
+                    Password = _option.Password
                 }
             };
 

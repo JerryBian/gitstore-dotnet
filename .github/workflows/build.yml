@@ -10,10 +10,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-      - uses: actions/setup-dotnet@v3
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8'
+          dotnet-version: '10.0.x'
       - name: Run test
         run: |
           $env:PersonalAccessToken = "${{ secrets.ACCESS_TOKEN }}"
@@ -24,10 +25,11 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-      - uses: actions/setup-dotnet@v3
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8'
+          dotnet-version: '10.0.x'
       - name: Run test
         run: |
           export PersonalAccessToken="${{ secrets.ACCESS_TOKEN }}"
@@ -38,10 +40,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-      - uses: actions/setup-dotnet@v3
+        uses: actions/checkout@v4
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8'
+          dotnet-version: '10.0.x'
       - name: Run test
         run: |
           export PersonalAccessToken="${{ secrets.ACCESS_TOKEN }}"
@@ -54,20 +57,22 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup environment variables
         run: |
-          APP_VERSION=`cat VERSION`
+          MAJOR_VERSION=$(cat VERSION)
+          APP_VERSION="${MAJOR_VERSION}.${{ github.run_number }}.0"
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
+          echo "Building version: $APP_VERSION"
 
-      - uses: actions/setup-dotnet@v3
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8'
+          dotnet-version: '10.0.x'
 
       - name: Publish NuGet package
         shell: pwsh
         run: |
           $env:NugetApiKey = "${{ secrets.NUGET_API_KEY }}"
-          ls
           ./pack.ps1 ${{ env.APP_VERSION }}
